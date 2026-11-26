@@ -1,0 +1,2 @@
+python-telegram-bot==21.*
+keyring>=24; sys_platform == "win32"
