@@ -13,6 +13,7 @@ Settings (environment variables):
 Each sticker's value comes from its position in the pack, so the pack must be
 in this order: +1, +10, +50, +100, -1, -10, -50, -100.
 """
+import asyncio
 import logging
 import os
 import sqlite3
@@ -21,7 +22,7 @@ import time
 from pathlib import Path
 
 from telegram import Update
-from telegram.error import BadRequest
+from telegram.error import BadRequest, NetworkError
 from telegram.ext import (Application, CommandHandler, ContextTypes,
                           MessageHandler, filters)
 
@@ -147,6 +148,18 @@ def fmt(n: int) -> str:
     return f"+{n}" if n > 0 else str(n)
 
 
+async def reply(msg, text: str):
+    """Reply, retrying a few times if the network hiccups."""
+    for attempt in range(4):
+        try:
+            return await msg.reply_text(text)
+        except NetworkError as e:  # includes TimedOut
+            if attempt == 3:
+                raise
+            log.warning("Reply failed (%s), retrying", e)
+            await asyncio.sleep(3 * (attempt + 1))
+
+
 def points(n: int) -> str:
     return f"{n} point" if abs(n) == 1 else f"{n} points"
 
@@ -158,7 +171,7 @@ async def on_sticker(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     if not st or not st.set_name:
         return
     if not STICKER_SET:  # setup mode: tell people which pack this is
-        await msg.reply_text(f"This sticker is from the pack {st.set_name}\n"
+        await reply(msg, f"This sticker is from the pack {st.set_name}\n"
                              f"Set STICKER_SET={st.set_name} and restart me.")
         return
     if st.set_name.lower() != STICKER_SET.lower():
@@ -171,46 +184,46 @@ async def on_sticker(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
             return
     who = msg.from_user.first_name if msg.from_user else "someone"
     t = add_points(msg.chat_id, who, delta)
-    await msg.reply_text(f"{fmt(delta)} → total: {points(t)}\n{mood(t)}")
+    await reply(msg, f"{fmt(delta)} → total: {points(t)}\n{mood(t)}")
 
 
 async def cmd_score(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     t = total(update.effective_chat.id)
-    await update.effective_message.reply_text(f"Total: {points(t)}\n{mood(t)}")
+    await reply(update.effective_message, f"Total: {points(t)}\n{mood(t)}")
 
 
 async def cmd_history(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     rows = history(update.effective_chat.id)
     if not rows:
-        await update.effective_message.reply_text("No points yet.")
+        await reply(update.effective_message, "No points yet.")
         return
     lines = [f"{fmt(d)}  by {by}  ({time.strftime('%b %d %H:%M', time.localtime(ts))})"
              for d, by, ts in rows]
-    await update.effective_message.reply_text("Last points:\n" + "\n".join(lines))
+    await reply(update.effective_message, "Last points:\n" + "\n".join(lines))
 
 
 async def cmd_week(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     plus, minus, n = week(update.effective_chat.id)
-    await update.effective_message.reply_text(
+    await reply(update.effective_message, 
         f"Last 7 days: {n} stickers\nEarned: +{plus}\nLost: {minus}\nNet: {fmt(plus + minus)}")
 
 
 async def cmd_undo(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     d, t = undo_last(update.effective_chat.id)
     text = "Nothing to undo." if d is None else f"Undid {fmt(d)}. Total: {t}"
-    await update.effective_message.reply_text(text)
+    await reply(update.effective_message, text)
 
 
 async def cmd_reset(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     if ctx.args != ["confirm"]:
-        await update.effective_message.reply_text("This wipes the score. Send /reset confirm to do it.")
+        await reply(update.effective_message, "This wipes the score. Send /reset confirm to do it.")
         return
     reset(update.effective_chat.id)
-    await update.effective_message.reply_text("Score reset to 0. Fresh start 🌱")
+    await reply(update.effective_message, "Score reset to 0. Fresh start 🌱")
 
 
 async def cmd_start(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
-    await update.effective_message.reply_text(
+    await reply(update.effective_message, 
         "Send a Good Boyfriend Points sticker and I'll count it.\n\n"
         "/score – current total\n/history – last 10\n/week – last 7 days\n"
         "/undo – remove the last one\n/reset confirm – start over")
