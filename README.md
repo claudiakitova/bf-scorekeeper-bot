@@ -2,24 +2,32 @@
 
 A Telegram bot (@bf_scorekeeper_bot) that counts Good Boyfriend Points when someone sends a sticker from the pack in a chat the bot is in.
 
-## Run it on this PC
+## Where it runs
 
-It counts only while the PC is on and the window is open.
+Since Nov 26, 2026 it runs all the time on a free Google Cloud server (project `bf-scorekeeper-bot-2611`, e2-micro VM `bf-bot` in us-east1-b). The server has no IPv4 address, which would cost money. It reaches Telegram over IPv6, and you connect to it through Google's IAP tunnel.
+
+On the server the bot is a service called `bf-bot`: code in `/opt/bf-bot` (libraries in `/opt/bf-bot/lib`), token in `/etc/bf-bot.env`, scores in `/var/lib/bf-bot/points.db`, time zone America/New_York. It restarts by itself after a crash or a reboot.
+
+Check that it's running:
+```
+gcloud compute ssh bf-bot --zone=us-east1-b --tunnel-through-iap --command="sudo journalctl -u bf-bot -n 20 -o cat"
+```
+
+Update the code after changing `bot.py`:
+```
+gcloud compute scp bot.py bf-bot: --zone=us-east1-b --tunnel-through-iap
+gcloud compute ssh bf-bot --zone=us-east1-b --tunnel-through-iap --command="sudo cp bot.py /opt/bf-bot/ && sudo systemctl restart bf-bot"
+```
+
+## Run it on this PC instead
+
+Only one copy can run at a time. Two copies with one token fail with "Conflict: terminated by other getUpdates request", so stop the server first (`sudo systemctl stop bf-bot`).
 
 1. Copy the token from the BotFather chat, then run this. It reads the token from the clipboard and saves it in Windows Credential Manager as `bf-scorekeeper-bot-token`, not in a file:
    ```
    .venv\Scripts\python bot.py --set-token
    ```
-2. Double-click `run.cmd`.
-
-## Run it all the time on Railway
-
-1. Push this folder to a private GitHub repo.
-2. On railway.com: New Project, Deploy from GitHub repo, pick the repo.
-3. Variables: `BOT_TOKEN`, `STICKER_SET` is optional (the pack, bf_points_claudia, is already set in `bot.py`), `DB_PATH=/data/points.db`, and `TZ` (for example `America/New_York`) so `/history` shows local time.
-4. Add a Volume mounted at `/data`, or the score resets on every redeploy.
-
-Stop the copy on the PC first. Two copies with one token fail with "Conflict: terminated by other getUpdates request".
+2. Double-click `run.cmd`. It counts only while the PC is on and the window is open.
 
 ## Points
 
