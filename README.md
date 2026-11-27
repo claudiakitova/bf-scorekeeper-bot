@@ -6,7 +6,7 @@ A Telegram bot (@bf_scorekeeper_bot) that counts Good Boyfriend Points when some
 
 Since Nov 26, 2026 it runs all the time on a free Google Cloud server (project `bf-scorekeeper-bot-2611`, e2-micro VM `bf-bot` in us-east1-b). The server has no IPv4 address, which would cost money. It reaches Telegram over IPv6, and you connect to it through Google's IAP tunnel.
 
-On the server the bot is a service called `bf-bot`: code in `/opt/bf-bot` (libraries in `/opt/bf-bot/lib`), token in `/etc/bf-bot.env`, scores in `/var/lib/bf-bot/points.db`, time zone America/New_York. It restarts by itself after a crash or a reboot.
+On the server the bot is a service called `bf-bot`: code in `/opt/bf-bot` (libraries in `/opt/bf-bot/lib`), token and `ALLOWED_CHATS` (the only chats it answers in) in `/etc/bf-bot.env`, scores in `/var/lib/bf-bot/points.db`, time zone America/New_York. It restarts by itself after a crash or a reboot.
 
 Check that it's running:
 ```
