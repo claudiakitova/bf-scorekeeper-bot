@@ -23,8 +23,8 @@ from pathlib import Path
 
 from telegram import Update
 from telegram.error import BadRequest, NetworkError
-from telegram.ext import (Application, ApplicationHandlerStop, CommandHandler,
-                          ContextTypes, MessageHandler, TypeHandler, filters)
+from telegram.ext import (Application, CommandHandler, ContextTypes,
+                          MessageHandler, filters)
 
 PACK_ORDER = [1, 10, 50, 100, -1, -10, -50, -100]
 DEFAULT_STICKER_SET = "bf_points_claudia"  # STICKER_SET overrides it
@@ -39,8 +39,6 @@ def pack_name(value: str) -> str:
 
 STICKER_SET = pack_name(os.environ.get("STICKER_SET") or DEFAULT_STICKER_SET)
 DB_PATH = os.environ.get("DB_PATH") or str(Path(__file__).with_name("points.db"))
-# Comma-separated chat ids the bot answers in. Empty means every chat.
-ALLOWED_CHATS = {int(x) for x in os.environ.get("ALLOWED_CHATS", "").replace(" ", "").split(",") if x}
 
 logging.basicConfig(level=logging.INFO,
                     format="%(asctime)s %(levelname)s %(message)s")
@@ -150,25 +148,16 @@ def fmt(n: int) -> str:
     return f"+{n}" if n > 0 else str(n)
 
 
-async def gatekeeper(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
-    """Ignore chats that aren't in ALLOWED_CHATS (when it's set)."""
-    chat = update.effective_chat
-    if ALLOWED_CHATS and (chat is None or chat.id not in ALLOWED_CHATS):
-        log.info("Ignored chat %s", chat.id if chat else None)
-        raise ApplicationHandlerStop
-
-
 async def reply(msg, text: str):
-    """Reply, retrying for about 2 minutes if the network hiccups."""
-    waits = [5, 10, 20, 30, 40]
-    for attempt in range(len(waits) + 1):
+    """Reply, retrying a few times if the network hiccups."""
+    for attempt in range(4):
         try:
             return await msg.reply_text(text)
         except NetworkError as e:  # includes TimedOut
-            if attempt == len(waits):
+            if attempt == 3:
                 raise
-            log.warning("Reply failed (%s), retrying in %ds", e, waits[attempt])
-            await asyncio.sleep(waits[attempt])
+            log.warning("Reply failed (%s), retrying", e)
+            await asyncio.sleep(3 * (attempt + 1))
 
 
 def points(n: int) -> str:
@@ -271,7 +260,6 @@ async def on_startup(app: Application):
 
 def build_app(token: str) -> Application:
     app = Application.builder().token(token).post_init(on_startup).build()
-    app.add_handler(TypeHandler(Update, gatekeeper), group=-1)
     app.add_handler(CommandHandler(["start", "help"], cmd_start))
     app.add_handler(CommandHandler("score", cmd_score))
     app.add_handler(CommandHandler("history", cmd_history))
