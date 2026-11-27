@@ -4,30 +4,24 @@ A Telegram bot (@bf_scorekeeper_bot) that counts Good Boyfriend Points when some
 
 Stickers: https://t.me/addstickers/goodbfpoints (the images are in `stickers/`). The bot also counts the older copy of the pack, `bf_points_claudia`.
 
-## Where it runs
+## Use it
 
-It runs on a Linux server as a service called `bf-bot`: code in `/opt/bf-bot` (libraries in `/opt/bf-bot/lib`), token in `/etc/bf-bot.env`, scores in `/var/lib/bf-bot/points.db`, time zone America/New_York. It restarts by itself after a crash or a reboot.
+Add the stickers, add @bf_scorekeeper_bot to a group (or open a private chat with it) and send a sticker. It replies with the new total and a rank.
 
-Check that it's running:
-```
-gcloud compute ssh bf-bot --zone=us-east1-b --tunnel-through-iap --command="sudo journalctl -u bf-bot -n 20 -o cat"
-```
+## Run your own copy
 
-Update the code after changing `bot.py`:
-```
-gcloud compute scp bot.py bf-bot: --zone=us-east1-b --tunnel-through-iap
-gcloud compute ssh bf-bot --zone=us-east1-b --tunnel-through-iap --command="sudo cp bot.py /opt/bf-bot/ && sudo systemctl restart bf-bot"
-```
-
-## Run it on this PC instead
-
-Only one copy can run at a time. Two copies with one token fail with "Conflict: terminated by other getUpdates request", so stop the server first (`sudo systemctl stop bf-bot`).
-
-1. Copy the token from the BotFather chat, then run this. It reads the token from the clipboard and saves it in Windows Credential Manager as `bf-scorekeeper-bot-token`, not in a file:
+1. Make a bot in @BotFather and copy its token. Turn privacy mode off there (`/setprivacy`, Disable) so the bot sees stickers in groups.
+2. Make your own sticker pack in @Stickers from the images in `stickers/`, in the same order, or use any pack of 8 stickers.
+3. Install and start it (Python 3.10 or newer):
    ```
-   .venv\Scripts\python bot.py --set-token
+   pip install -r requirements.txt
+   BOT_TOKEN=your-token STICKER_SET=your_pack_name python bot.py
    ```
-2. Double-click `run.cmd`. It counts only while the PC is on and the window is open.
+   Scores go to `points.db` next to `bot.py`. Set `DB_PATH` to keep them somewhere else, and `TZ` for the times in `/history`.
+
+On Windows, `python bot.py --set-token` saves the token from the clipboard to Credential Manager, and `run.cmd` starts the bot.
+
+Only one copy can run per token. A second copy fails with "Conflict: terminated by other getUpdates request".
 
 ## Points
 
