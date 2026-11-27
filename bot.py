@@ -5,7 +5,7 @@ Counts points when someone sends a sticker from the pack in a chat the bot is in
 Settings (environment variables):
   BOT_TOKEN    token from @BotFather. On Windows it can live in Credential
                Manager instead: run "python bot.py --set-token" once.
-  STICKER_SET  short name of the pack, the part after t.me/addstickers/
+  STICKER_SET  short name of the pack, the part after t.me/addstickers/; several packs separated by commas
                (a full link works too). While it's empty, the bot answers
                any sticker with the name of its pack.
   DB_PATH      score database, defaults to points.db next to this file.
@@ -27,7 +27,7 @@ from telegram.ext import (Application, CommandHandler, ContextTypes,
                           MessageHandler, filters)
 
 PACK_ORDER = [1, 10, 50, 100, -1, -10, -50, -100]
-DEFAULT_STICKER_SET = "bf_points_claudia"  # STICKER_SET overrides it
+DEFAULT_STICKER_SET = "goodbfpoints,bf_points_claudia"  # STICKER_SET overrides it
 TOKEN_NAME = "bf-scorekeeper-bot-token"  # Windows Credential Manager entry
 TOKEN_USER = "claudia"
 
@@ -37,7 +37,7 @@ def pack_name(value: str) -> str:
     return value.strip().rstrip("/").rsplit("/", 1)[-1]
 
 
-STICKER_SET = pack_name(os.environ.get("STICKER_SET") or DEFAULT_STICKER_SET)
+STICKER_SETS = [pack_name(x) for x in (os.environ.get("STICKER_SET") or DEFAULT_STICKER_SET).split(",") if x.strip()]
 DB_PATH = os.environ.get("DB_PATH") or str(Path(__file__).with_name("points.db"))
 
 logging.basicConfig(level=logging.INFO,
@@ -170,11 +170,11 @@ async def on_sticker(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     st = msg.sticker
     if not st or not st.set_name:
         return
-    if not STICKER_SET:  # setup mode: tell people which pack this is
+    if not STICKER_SETS:  # setup mode: tell people which pack this is
         await reply(msg, f"This sticker is from the pack {st.set_name}\n"
                              f"Set STICKER_SET={st.set_name} and restart me.")
         return
-    if st.set_name.lower() != STICKER_SET.lower():
+    if st.set_name.lower() not in {s.lower() for s in STICKER_SETS}:
         return
     delta = STICKER_VALUES.get(st.file_unique_id)
     if delta is None:  # pack was edited after startup, reload once
@@ -231,13 +231,16 @@ async def cmd_start(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
 
 # ---------- startup ----------
 async def load_pack(app: Application):
-    s = await app.bot.get_sticker_set(STICKER_SET)
+    values = {}
+    for name in STICKER_SETS:
+        s = await app.bot.get_sticker_set(name)
+        for st, val in zip(s.stickers, PACK_ORDER):
+            values[st.file_unique_id] = val
+        log.info("Loaded %d stickers from %s", min(len(s.stickers), len(PACK_ORDER)), name)
+        if len(s.stickers) != len(PACK_ORDER):
+            log.warning("Pack %s has %d stickers, expected %d", name, len(s.stickers), len(PACK_ORDER))
     STICKER_VALUES.clear()
-    for st, val in zip(s.stickers, PACK_ORDER):
-        STICKER_VALUES[st.file_unique_id] = val
-    log.info("Loaded %d stickers from %s", len(STICKER_VALUES), STICKER_SET)
-    if len(s.stickers) != len(PACK_ORDER):
-        log.warning("Pack has %d stickers, expected %d", len(s.stickers), len(PACK_ORDER))
+    STICKER_VALUES.update(values)
 
 
 async def on_startup(app: Application):
@@ -247,14 +250,14 @@ async def on_startup(app: Application):
         log.warning("Privacy mode is on, so in groups I only see commands, not stickers. "
                     "In @BotFather send /setprivacy, pick the bot, choose Disable, "
                     "then remove me from the group and add me back.")
-    if not STICKER_SET:
+    if not STICKER_SETS:
         log.warning("STICKER_SET is empty. Send me any sticker from your pack "
                     "and I'll reply with the pack's name.")
         return
     try:
         await load_pack(app)
     except BadRequest as e:
-        raise RuntimeError(f"Sticker pack {STICKER_SET!r} not found ({e.message}). "
+        raise RuntimeError(f"A sticker pack in {STICKER_SETS} was not found ({e.message}). "
                            "Use the short name, the part after t.me/addstickers/.") from e
 
 

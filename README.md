@@ -2,6 +2,8 @@
 
 A Telegram bot (@bf_scorekeeper_bot) that counts Good Boyfriend Points when someone sends a sticker from the pack in a chat the bot is in.
 
+Stickers: https://t.me/addstickers/goodbfpoints (the images are in `stickers/`). The bot also counts the older copy of the pack, `bf_points_claudia`.
+
 ## Where it runs
 
 It runs on a Linux server as a service called `bf-bot`: code in `/opt/bf-bot` (libraries in `/opt/bf-bot/lib`), token in `/etc/bf-bot.env`, scores in `/var/lib/bf-bot/points.db`, time zone America/New_York. It restarts by itself after a crash or a reboot.
